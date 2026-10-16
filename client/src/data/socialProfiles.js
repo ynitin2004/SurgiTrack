@@ -19,6 +19,7 @@ export const SOCIAL_PROFILES = [
   {
     id: 'somashekhar-sp',
     name: 'Dr. S P Somashekhar',
+    affiliation: 'Aster CMI',
     photo: somashekharSp,
     channel: 'https://www.youtube.com/@dr.somashekharsp8545',
     handle: '@dr.somashekharsp8545',
@@ -34,6 +35,7 @@ export const SOCIAL_PROFILES = [
   {
     id: 'magan-mehrotra',
     name: 'Dr. Magan Mehrotra',
+    affiliation: 'Apex Hospital',
     photo: maganMehrotra,
     channel: 'https://www.youtube.com/@youcanbealoser4822',
     handle: '@youcanbealoser4822',
@@ -41,6 +43,7 @@ export const SOCIAL_PROFILES = [
   {
     id: 'lalit-aditya-malik',
     name: 'Dr. Lalit Aditya Malik',
+    affiliation: 'Manipal Hospitals',
     photo: lalitAdityaMalik,
     channel: 'https://www.youtube.com/@dr.lalitadityamalik',
     handle: '@dr.lalitadityamalik',

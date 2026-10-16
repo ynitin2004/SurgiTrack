@@ -15,7 +15,7 @@ import './mascot.css';
  * again; hover for a hello. Under prefers-reduced-motion he just appears.
  */
 const HELLO = "Hi there! 👋 I'm RA-ONE";
-const INVITE = 'Look what we have new in our inventory! 👀';
+const INVITE = 'Look what we have new in our portfolio! 👀';
 const SEEN_KEY = 'inventory-mascot-seen';
 const WALK_SPEED = 110; // px per second
 
@@ -195,7 +195,7 @@ export default function InventoryMascot({ className = '' }) {
           className={`orbi ${waving ? 'is-waving' : ''} ${hovered ? 'is-happy' : ''}`}
           role="button"
           tabIndex={0}
-          aria-label="RA-ONE: see what's new in our instrument inventory"
+          aria-label="RA-ONE: see what's new in our instrument portfolio"
           onClick={onPoke}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -224,7 +224,7 @@ export default function InventoryMascot({ className = '' }) {
         </div>
       </div>
 
-      <Modal open={showList} onClose={() => setShowList(false)} title="New in our inventory" size="md">
+      <Modal open={showList} onClose={() => setShowList(false)} title="New in our portfolio" size="md">
         <div className="space-y-4 p-5">
           <p className="text-sm text-ink-2">The latest instruments added to the SurgiTrack catalogue.</p>
           <ul className="divide-y divide-line">
