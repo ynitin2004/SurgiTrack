@@ -1,4 +1,5 @@
 require('dotenv').config();
+const fs = require('fs');
 const http = require('http');
 const express = require('express');
 const cors = require('cors');
@@ -73,9 +74,15 @@ main().catch((err) => {
   )
     ? ' — check MONGODB_URI and that MongoDB Atlas Network Access allows this server (e.g. 0.0.0.0/0)'
     : '';
-  console.error(`startup failed: ${err.message}${hint}`);
-  console.error(err);
-  // let stderr flush before exiting (process.exit can drop piped output, e.g. on Render)
-  process.exitCode = 1;
-  setTimeout(() => process.exit(1), 500);
+  // synchronous writes to stdout AND stderr: async console output to a pipe
+  // can be lost when the process exits (this is what hid errors on Render)
+  const text = `startup failed: ${err.message}${hint}\n${err.stack || ''}\n`;
+  for (const fd of [1, 2]) {
+    try {
+      fs.writeSync(fd, text);
+    } catch {
+      /* stream closed */
+    }
+  }
+  process.exit(1);
 });
