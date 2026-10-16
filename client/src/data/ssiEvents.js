@@ -1,11 +1,76 @@
-// "Upcoming SSI events" — six slots. Fill a slot by giving it a title (and
-// optionally date 'YYYY-MM-DD', time, location, description, link); slots
-// without a title render as "Details coming soon" placeholders.
+// "Upcoming SSI events". Dates are local calendar days (YYYY-MM-DD). Each card
+// gets a designed cover; set `image` (an import from assets/) to show an
+// official poster instead. Events without a confirmed web page leave `link`
+// empty and show "Link to be shared".
 export const SSI_EVENTS = [
-  { id: 'event-1' },
-  { id: 'event-2' },
-  { id: 'event-3' },
-  { id: 'event-4' },
-  { id: 'event-5' },
-  { id: 'event-6' },
+  {
+    id: 'asacon-2026',
+    short: 'ASACON',
+    title: 'ASACON 2026',
+    start: '2026-10-23',
+    end: '2026-10-25',
+    city: 'Diphu, Assam',
+    country: 'India',
+    tone: 'teal',
+  },
+  {
+    id: 'spucon-2026',
+    short: 'SPUCON',
+    title: 'SPUCON 2026',
+    start: '2026-10-29',
+    end: '2026-10-31',
+    city: 'Lucknow, Uttar Pradesh',
+    country: 'India',
+    venue: "King George's Medical University (KGMU)",
+    tone: 'violet',
+  },
+  {
+    id: 'rhinocon-2026',
+    short: 'RHINOCON',
+    title: 'Rhinocon 2026',
+    start: '2026-10-30',
+    end: '2026-11-01',
+    city: 'Guwahati, Assam',
+    country: 'India',
+    organiser: 'Announced by NEBAOI — North Eastern Branch, Association of Otolaryngologists of India',
+    link: { url: 'https://www.nebaoi.org/news/05/2025/rhinocon-2026', label: 'NEBAOI announcement' },
+    tone: 'amber',
+  },
+  {
+    id: 'punjsurg-2026',
+    short: 'PUNJSURG',
+    title: 'PunjSurg 2026',
+    start: '2026-10-31',
+    end: '2026-11-01',
+    city: 'Ludhiana, Punjab',
+    country: 'India',
+    tone: 'rose',
+  },
+  {
+    id: 'siu-2026',
+    short: 'SIU',
+    title: 'SIU 2026 — Société Internationale d’Urologie Congress',
+    start: '2026-11-11',
+    end: '2026-11-14',
+    city: 'Florence',
+    country: 'Italy',
+    link: { url: 'https://siu2026.eventscribe.net/agenda.asp?pfp=FullSchedule', label: 'Full congress schedule' },
+    tone: 'blue',
+  },
+  {
+    id: 'surgery-systems-live-2026',
+    short: 'SSL',
+    title: 'Surgery Systems Live 2026',
+    start: '2026-11-24',
+    end: '2026-11-24',
+    time: '8:00 AM – 5:30 PM',
+    city: 'Birmingham',
+    country: 'United Kingdom',
+    venue: 'The International Convention Centre (ICC)',
+    organiser: 'Global Surgery Unit, University of Birmingham',
+    description:
+      'One-day conference on robotic surgery, laparoscopy, data science and digital surgery, wound closure and greener operating theatres.',
+    link: { url: 'https://www.eventbrite.com/e/surgery-systems-live-tickets-1982435902149', label: 'Tickets & details' },
+    tone: 'green',
+  },
 ];
