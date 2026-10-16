@@ -1,0 +1,186 @@
+@import "tailwindcss";
+
+/* Design tokens. Brand = teal. Pie slots = the only non-blue 4-hue set that
+   passes all-pairs colour-blind + normal-vision checks in both modes
+   (violet, green, yellow, magenta) + a neutral "Other". */
+:root {
+  color-scheme: light;
+  --page: #f3f7f6;
+  --surface: #ffffff;
+  --surface-2: #f7faf9;
+  --ink: #0f1f1e;
+  --ink-2: #4a5a58;
+  --muted: #7c8a88;
+  --grid: #e3eae8;
+  --axis: #c9d4d2;
+  --border: rgba(15, 31, 30, 0.08);
+
+  --brand: #0f766e;
+  --brand-600: #0d9488;
+  --brand-400: #2dd4bf;
+  --brand-wash: rgba(13, 148, 136, 0.1);
+  --brand-ink: #0b4f4a;
+  --accent: #0d9488; /* single-series chart marks */
+  --accent-wash: rgba(13, 148, 136, 0.12);
+
+  --pie-1: #4a3aa7;
+  --pie-2: #008300;
+  --pie-3: #eda100;
+  --pie-4: #e87ba4;
+  --pie-other: #c9c7bd;
+
+  --good: #0ca30c;
+  --good-ink: #006300;
+  --warning: #fab219;
+  --warning-ink: #8a5a00;
+  --critical: #d03b3b;
+  --violet-wash: rgba(74, 58, 167, 0.1);
+  --amber-wash: rgba(237, 161, 0, 0.14);
+  --good-wash: rgba(12, 163, 12, 0.1);
+  --critical-wash: rgba(208, 59, 59, 0.1);
+
+  --shadow: 0 1px 2px rgba(15, 31, 30, 0.04), 0 12px 32px -18px rgba(15, 118, 110, 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #0b1312;
+    --surface: #131c1b;
+    --surface-2: #182322;
+    --ink: #f2f7f6;
+    --ink-2: #b9c6c4;
+    --muted: #84928f;
+    --grid: #22302e;
+    --axis: #34423f;
+    --border: rgba(255, 255, 255, 0.08);
+
+    --brand: #14b8a6;
+    --brand-600: #2dd4bf;
+    --brand-wash: rgba(45, 212, 191, 0.12);
+    --brand-ink: #99f6e4;
+    --accent: #2dd4bf;
+    --accent-wash: rgba(45, 212, 191, 0.14);
+
+    --pie-1: #9085e9;
+    --pie-2: #008300;
+    --pie-3: #c98500;
+    --pie-4: #d55181;
+    --pie-other: #4a4a46;
+
+    --good-ink: #0ca30c;
+    --warning-ink: #fab219;
+    --violet-wash: rgba(144, 133, 233, 0.14);
+    --amber-wash: rgba(250, 178, 25, 0.14);
+    --good-wash: rgba(12, 163, 12, 0.16);
+    --critical-wash: rgba(208, 59, 59, 0.18);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px -18px rgba(0, 0, 0, 0.6);
+  }
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-grid: var(--grid);
+  --color-line: var(--border);
+  --color-brand: var(--brand);
+  --color-brand-600: var(--brand-600);
+  --color-brand-wash: var(--brand-wash);
+  --color-brand-ink: var(--brand-ink);
+  --color-accent: var(--accent);
+  --color-accent-wash: var(--accent-wash);
+  --color-good: var(--good);
+  --color-good-ink: var(--good-ink);
+  --color-good-wash: var(--good-wash);
+  --color-warning: var(--warning);
+  --color-warning-ink: var(--warning-ink);
+  --color-amber-wash: var(--amber-wash);
+  --color-critical: var(--critical);
+  --color-critical-wash: var(--critical-wash);
+  --color-violet: var(--pie-1);
+  --color-violet-wash: var(--violet-wash);
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --shadow-card: var(--shadow);
+}
+
+body {
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* hero gradient used by the lead KPI card, sidebar and login panel */
+.bg-hero {
+  background: linear-gradient(135deg, #0f766e 0%, #0d9488 55%, #14b8a6 100%);
+}
+.bg-sidebar {
+  background: linear-gradient(180deg, #0b2f2c 0%, #0f3f3b 60%, #115e57 100%);
+}
+.bg-reward {
+  background: radial-gradient(circle at 20% 0%, #fde68a 0%, transparent 45%),
+    linear-gradient(135deg, #4a3aa7 0%, #7c3aed 50%, #db2777 100%);
+}
+
+.label-caps {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+@keyframes flash {
+  from { background-color: var(--accent-wash); }
+  to { background-color: transparent; }
+}
+.flash { animation: flash 1.5s ease-out; }
+
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+.pop-in { animation: pop-in 0.22s ease-out; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(-6deg); }
+  50% { transform: translateY(-6px) rotate(4deg); }
+}
+.float { animation: float 3s ease-in-out infinite; }
+
+/* Surgeon tier badges (TierBadge). Text + icon carry the tier; colour adds
+   recognisability. Each pair keeps >= 4.5:1 text contrast in its mode. */
+.tier { border: 1px solid transparent; }
+.tier-bronze { background: #f7e7d8; color: #7a3f12; border-color: #e8c4a2; }
+.tier-silver { background: #eceff3; color: #3d4652; border-color: #cfd5dd; }
+.tier-gold { background: #fdf0c4; color: #7a5200; border-color: #f1d27a; }
+.tier-champion { background: #ece8fb; color: #3f2f99; border-color: #cdc4f3; }
+.tier-legend {
+  background: linear-gradient(135deg, #4a3aa7 0%, #7c3aed 50%, #db2777 100%);
+  color: #fff;
+  box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.25), 0 4px 12px -4px rgba(219, 39, 119, 0.55);
+}
+@media (prefers-color-scheme: dark) {
+  .tier-bronze { background: rgba(205, 127, 50, 0.16); color: #f0b98a; border-color: rgba(205, 127, 50, 0.35); }
+  .tier-silver { background: rgba(203, 213, 225, 0.12); color: #d6dde6; border-color: rgba(203, 213, 225, 0.3); }
+  .tier-gold { background: rgba(250, 204, 21, 0.14); color: #fcd34d; border-color: rgba(250, 204, 21, 0.35); }
+  .tier-champion { background: rgba(144, 133, 233, 0.16); color: #c4bdf6; border-color: rgba(144, 133, 233, 0.38); }
+}
+
+/* entry motion for chart legends / list rows: add .rise + style="--i: n" */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.rise { animation: rise 0.5s ease-out both; animation-delay: calc(var(--i, 0) * 90ms + 150ms); }
+
+@media (prefers-reduced-motion: reduce) {
+  .flash, .pop-in, .float, .rise { animation: none; }
+}
