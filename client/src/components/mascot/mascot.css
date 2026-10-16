@@ -1,0 +1,156 @@
+/* RA-ONE mascot (RobotFigure + InventoryMascot). SVG parts animate with
+   transform-box: fill-box so each origin is relative to the part itself. */
+
+.orbi-track {
+  position: relative;
+  height: 124px;
+  min-width: 112px;
+}
+
+.orbi-walker {
+  position: absolute;
+  bottom: 0;
+  width: 96px;
+  transition-property: left;
+  transition-timing-function: linear;
+  z-index: 5;
+}
+.orbi-walker.is-away { opacity: 0; pointer-events: none; }
+
+.orbi {
+  position: relative;
+  display: block;
+  width: 96px;
+  cursor: pointer;
+  outline: none;
+  border-radius: 16px;
+}
+.orbi:focus-visible { box-shadow: 0 0 0 3px var(--brand-wash), 0 0 0 1px var(--brand); }
+
+.orbi-stage {
+  perspective: 600px;
+  transform: rotateY(var(--orbi-tilt, 0deg));
+  transition: transform 0.25s ease-out;
+}
+.orbi-svg { display: block; width: 96px; height: 120px; overflow: visible; }
+
+.orbi-svg g, .orbi-svg ellipse, .orbi-svg path { transform-box: fill-box; }
+
+/* idle: gentle float, breathing shadow */
+.orbi-float { transform-origin: 50% 100%; animation: orbi-float 3s ease-in-out infinite; }
+@keyframes orbi-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.orbi-shadow { transform-origin: 50% 50%; animation: orbi-shadow 3s ease-in-out infinite; }
+@keyframes orbi-shadow { 0%, 100% { transform: scaleX(1); opacity: 1; } 50% { transform: scaleX(0.86); opacity: 0.7; } }
+
+.orbi-ear-l { transform-origin: 100% 35%; animation: orbi-ear-l 2.6s ease-in-out infinite; }
+.orbi-ear-r { transform-origin: 0% 35%; animation: orbi-ear-r 2.6s ease-in-out infinite; }
+@keyframes orbi-ear-l { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-7deg); } }
+@keyframes orbi-ear-r { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(7deg); } }
+
+.orbi-trunk { transform-origin: 30% 0%; animation: orbi-trunk 3.4s ease-in-out infinite; transition: transform 0.3s; }
+@keyframes orbi-trunk { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(5deg); } }
+
+.orbi-cape { transform-origin: 50% 0%; animation: orbi-cape 3s ease-in-out infinite; }
+@keyframes orbi-cape { 0%, 100% { transform: skewX(0); } 50% { transform: skewX(-2deg); } }
+
+.orbi-core { transform-origin: 50% 50%; animation: orbi-core 2s ease-in-out infinite; }
+.orbi-core-ring { transform-origin: 50% 50%; animation: orbi-core 2s ease-in-out infinite reverse; }
+@keyframes orbi-core { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.18); opacity: 0.75; } }
+
+.orbi-crown-jewel { animation: orbi-twinkle 2.2s ease-in-out infinite; }
+.orbi-crown-jewel:nth-of-type(2) { animation-delay: 0.7s; }
+@keyframes orbi-twinkle { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+/* eyes follow the cursor and blink; happy arcs on hover */
+.orbi-eyes { transform: translate(var(--orbi-eye-x, 0), var(--orbi-eye-y, 0)); transition: transform 0.15s ease-out; }
+.orbi-eyes-open { transform-origin: 50% 50%; animation: orbi-blink 4.5s infinite; transition: opacity 0.15s; }
+@keyframes orbi-blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
+.orbi-eyes-happy { opacity: 0; transition: opacity 0.15s; }
+.orbi.is-happy .orbi-eyes-open { opacity: 0; }
+.orbi.is-happy .orbi-eyes-happy { opacity: 1; }
+
+/* royal wave: right arm lifts and waves, trunk trumpets */
+.orbi-royal-wave { transform-origin: 30% 8%; }
+.orbi.is-waving .orbi-royal-wave { animation: orbi-wave 1.3s ease-in-out; }
+@keyframes orbi-wave {
+  0% { transform: rotate(0); }
+  20% { transform: rotate(-110deg); }
+  40% { transform: rotate(-80deg); }
+  60% { transform: rotate(-115deg); }
+  80% { transform: rotate(-85deg); }
+  100% { transform: rotate(0); }
+}
+.orbi.is-waving .orbi-trunk { animation: orbi-trumpet 1.3s ease-in-out; }
+@keyframes orbi-trumpet { 0%, 100% { transform: rotate(0); } 30%, 70% { transform: rotate(-22deg); } }
+
+/* walking: alternate steps, swinging arms, bouncier float */
+.orbi-foot { transform-origin: 50% 100%; }
+.orbi-walker.is-walking .orbi-foot-l { animation: orbi-step 0.7s ease-in-out infinite; }
+.orbi-walker.is-walking .orbi-foot-r { animation: orbi-step 0.7s ease-in-out infinite 0.35s; }
+@keyframes orbi-step { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+/* arms carry rotate(±16) as SVG attributes; the CSS swing starts from the same
+   angle about the same centre so nothing jumps when walking starts */
+.orbi-arm { transform-origin: 50% 50%; }
+.orbi-walker.is-walking .orbi-arm-l { animation: orbi-swing-l 0.7s ease-in-out infinite; }
+.orbi-walker.is-walking .orbi-arm-r { animation: orbi-swing-r 0.7s ease-in-out infinite; }
+@keyframes orbi-swing-l { 0%, 100% { transform: rotate(16deg); } 50% { transform: rotate(2deg); } }
+@keyframes orbi-swing-r { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(-16deg); } }
+.orbi-walker.is-walking .orbi-float { animation-duration: 0.7s; }
+
+/* speech bubble beside the robot */
+.orbi-bubble {
+  position: absolute;
+  top: 4px;
+  width: max-content;
+  max-width: min(270px, calc(100vw - 150px));
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.35;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transform: scale(0.92);
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 6;
+}
+.orbi-bubble-right { left: calc(100% + 6px); transform-origin: 0 30%; }
+.orbi-bubble-left { right: calc(100% + 6px); transform-origin: 100% 30%; }
+.orbi-bubble.is-open { opacity: 1; transform: scale(1); }
+.orbi-bubble.is-interactive { pointer-events: auto; cursor: default; }
+.orbi-bubble::before {
+  content: '';
+  position: absolute;
+  top: 18px;
+  width: 10px;
+  height: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transform: rotate(45deg);
+}
+.orbi-bubble-right::before { left: -6px; border-top: none; border-right: none; }
+.orbi-bubble-left::before { right: -6px; border-bottom: none; border-left: none; }
+.orbi-bubble-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+.ra-tour-btn {
+  border-radius: 9px;
+  padding: 5px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  transition: filter 0.15s, background-color 0.15s;
+}
+.ra-tour-btn-primary { background: var(--brand); color: #fff; }
+.ra-tour-btn-primary:hover { filter: brightness(1.1); }
+.ra-tour-btn-ghost { color: var(--ink-2); border: 1px solid var(--border); }
+.ra-tour-btn-ghost:hover { background: var(--surface-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .orbi-float, .orbi-shadow, .orbi-ear-l, .orbi-ear-r, .orbi-trunk, .orbi-cape, .orbi-core, .orbi-core-ring,
+  .orbi-crown-jewel, .orbi-eyes-open, .orbi.is-waving .orbi-royal-wave, .orbi.is-waving .orbi-trunk,
+  .orbi-walker.is-walking .orbi-foot-l, .orbi-walker.is-walking .orbi-foot-r,
+  .orbi-walker.is-walking .orbi-arm-l, .orbi-walker.is-walking .orbi-arm-r { animation: none; }
+}
