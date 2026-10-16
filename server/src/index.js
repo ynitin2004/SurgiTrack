@@ -13,7 +13,25 @@ const { initChangeStreams } = require('./sockets/changeStreams');
 const PORT = process.env.PORT || 5000;
 const ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
 
+// Hosting dashboards often keep the quotes that .env needs around the bcrypt
+// hash ('$2a$...'); strip them so the admin login still works.
+if (/^(['"]).*\1$/.test(process.env.ADMIN_PASSWORD_HASH || '')) {
+  process.env.ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH.slice(1, -1);
+}
+
+// Name every missing setting up front instead of failing somewhere deeper.
+function checkEnv() {
+  const missing = ['MONGODB_URI', 'JWT_SECRET'].filter((k) => !process.env[k]?.trim());
+  if (missing.length) throw new Error(`Missing environment variable(s): ${missing.join(', ')}`);
+  if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD_HASH) {
+    console.warn('warning: ADMIN_EMAIL / ADMIN_PASSWORD_HASH not set — the built-in admin login is disabled');
+  } else if (!/^\$2[aby]\$\d{2}\$/.test(process.env.ADMIN_PASSWORD_HASH)) {
+    console.warn('warning: ADMIN_PASSWORD_HASH does not look like a bcrypt hash ($2a$/$2b$…) — admin login will fail');
+  }
+}
+
 async function main() {
+  checkEnv();
   store.load(); // fail fast if the app store file is unreadable
   await connectDB();
 
@@ -50,6 +68,14 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('startup failed:', err);
-  process.exit(1);
+  const hint = /ECONNREFUSED|ENOTFOUND|querySrv|Server selection timed out|IP.*whitelist|not authorized|bad auth|Authentication failed/i.test(
+    `${err.message} ${err.reason?.message || ''}`
+  )
+    ? ' — check MONGODB_URI and that MongoDB Atlas Network Access allows this server (e.g. 0.0.0.0/0)'
+    : '';
+  console.error(`startup failed: ${err.message}${hint}`);
+  console.error(err);
+  // let stderr flush before exiting (process.exit can drop piped output, e.g. on Render)
+  process.exitCode = 1;
+  setTimeout(() => process.exit(1), 500);
 });
