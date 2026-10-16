@@ -3,6 +3,10 @@ import { io } from 'socket.io-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 
+// Production: connect straight to the API host (VITE_SOCKET_URL) so WebSockets
+// work; dev: same origin through the Vite proxy.
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || undefined;
+
 const SocketContext = createContext({ socket: null, connected: false, lastEventAt: null });
 
 // One live connection per logged-in session. Cache wiring (see AGENT.md):
@@ -22,7 +26,7 @@ export function SocketProvider({ children }) {
 
   useEffect(() => {
     if (!token || !userId) return;
-    const s = io({ auth: { token } });
+    const s = io(SOCKET_URL, { auth: { token } });
     const touch = () => setLastEventAt(new Date());
     const invalidate = (...keys) => keys.forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
 

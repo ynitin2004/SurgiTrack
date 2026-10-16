@@ -12,7 +12,11 @@ const { socketAuth } = require('./middleware/auth');
 const { initChangeStreams } = require('./sockets/changeStreams');
 
 const PORT = process.env.PORT || 5000;
-const ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+// comma-separated list, e.g. "https://surgitrack.vercel.app,http://localhost:5173"
+const ORIGIN = (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
 
 // Hosting dashboards often keep the quotes that .env needs around the bcrypt
 // hash ('$2a$...'); strip them so the admin login still works.
