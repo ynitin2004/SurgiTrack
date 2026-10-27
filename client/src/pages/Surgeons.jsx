@@ -6,13 +6,13 @@ import api from '../api/axios';
 import Card from '../components/common/Card';
 import Pagination from '../components/common/Pagination';
 import TierBadge from '../components/common/TierBadge';
+import { tierFor } from '../utils/tier';
 import { control } from '../components/common/ui';
 import { initials } from '../components/surgeon/SurgeonProfileView';
 import { useDebounced } from '../hooks/useDebounced';
 import { fmtNumber } from '../utils/format';
 import { PageHeader } from './Dashboard';
 
-const REWARD_EVERY = 50;
 const th = 'label-caps py-3 pr-4 font-bold text-muted';
 
 export default function Surgeons() {
@@ -105,13 +105,13 @@ export default function Surgeons() {
                       <th className={th}>Surgeon</th>
                       <th className={th}>Expertise</th>
                       <th className={th}>Aligned hospital</th>
-                      <th className={th}>Next reward</th>
+                      <th className={th}>Next trophy</th>
                       <th className={`${th} text-right`}>Surgeries</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.items.map((s) => {
-                      const into = s.surgeryCount % REWARD_EVERY;
+                      const t = tierFor(s.surgeryCount);
                       return (
                         <tr key={s._id} className="border-b border-line transition-colors last:border-0 hover:bg-surface-2">
                           <td className="py-3 pr-4">
@@ -135,14 +135,18 @@ export default function Surgeons() {
                           <td className="py-3 pr-4 text-ink-2">{s.areaOfExpertise || '—'}</td>
                           <td className="py-3 pr-4 text-ink-2">{s.hospitalName || '—'}</td>
                           <td className="py-3 pr-4">
-                            <div className="flex items-center gap-2">
-                              <div className="h-1.5 w-20 overflow-hidden rounded-full bg-violet-wash" aria-hidden>
-                                <div className="bg-reward h-full rounded-full" style={{ width: `${(into / REWARD_EVERY) * 100}%` }} />
+                            {t.next ? (
+                              <div className="flex items-center gap-2" title={`${t.toNext} more to ${t.next.label}`}>
+                                <div className="h-1.5 w-20 overflow-hidden rounded-full bg-violet-wash" aria-hidden>
+                                  <div className="bg-reward h-full rounded-full" style={{ width: `${t.progress * 100}%` }} />
+                                </div>
+                                <span className="tabular text-xs text-muted">
+                                  {s.surgeryCount}/{t.next.min} · {t.next.label}
+                                </span>
                               </div>
-                              <span className="tabular text-xs text-muted">
-                                {into}/{REWARD_EVERY}
-                              </span>
-                            </div>
+                            ) : (
+                              <span className="text-xs font-semibold text-violet">Highest trophy</span>
+                            )}
                           </td>
                           <td className="tabular py-3 pr-4 text-right font-bold text-ink">{fmtNumber(s.surgeryCount)}</td>
                         </tr>

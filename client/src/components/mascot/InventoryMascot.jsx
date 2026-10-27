@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { Gift, Sparkles } from 'lucide-react';
 import api from '../../api/axios';
 import Modal from '../common/Modal';
@@ -46,7 +47,8 @@ export default function InventoryMascot({ className = '' }) {
   const [bubbleSide, setBubbleSide] = useState('right');
   const [bubbleMax, setBubbleMax] = useState(270);
   const [showList, setShowList] = useState(false);
-  const { rewards, openRedeem } = useSurgeonRewards();
+  const { rewards } = useSurgeonRewards();
+  const navigate = useNavigate();
 
   const { data } = useQuery({
     queryKey: ['new-inventory'],
@@ -178,7 +180,7 @@ export default function InventoryMascot({ className = '' }) {
     content = hasNews && !walking ? `${HELLO}. Click me to see what's new!` : HELLO;
   }
 
-  const available = rewards?.available || 0;
+  const trophies = rewards?.milestones?.length || 0;
 
   return (
     <div className={`orbi-track ${className}`} ref={trackRef}>
@@ -251,16 +253,16 @@ export default function InventoryMascot({ className = '' }) {
             ))}
           </ul>
           <div className="flex flex-wrap justify-end gap-2">
-            {available > 0 && (
+            {trophies > 0 && (
               <button
                 type="button"
                 onClick={() => {
                   setShowList(false);
-                  openRedeem();
+                  navigate('/rewards');
                 }}
                 className="bg-reward inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white shadow-md hover:brightness-110"
               >
-                <Gift size={16} aria-hidden /> Redeem a free instrument
+                <Gift size={16} aria-hidden /> View my rewards
               </button>
             )}
             <button

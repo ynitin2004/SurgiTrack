@@ -9,7 +9,7 @@ import InventoryMascot from '../components/mascot/InventoryMascot';
 // Surgeon portal home: only ever their own data (the API scopes it to the
 // surgeon profile linked to the logged-in account).
 export default function SurgeonHome() {
-  const { rewards, openRedeem } = useSurgeonRewards();
+  const { rewards } = useSurgeonRewards();
   const { data, isLoading, error } = useQuery({
     queryKey: ['my-profile'],
     queryFn: () => api.get('/me/profile').then((r) => r.data),
@@ -20,7 +20,7 @@ export default function SurgeonHome() {
 
   return (
     <SurgeonProfileView data={data} heading="My dashboard" allCasesHref="/surgeries" mascot={<InventoryMascot />} reportBase="/me">
-      <RewardProgressCard rewards={rewards} onRedeem={() => openRedeem()} />
+      <RewardProgressCard rewards={rewards} />
     </SurgeonProfileView>
   );
 }

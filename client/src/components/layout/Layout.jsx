@@ -28,7 +28,7 @@ const NAV = {
     { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
     { to: '/surgeries', label: 'Surgeries', icon: ClipboardList },
     { to: '/surgeons', label: 'Surgeons', icon: Stethoscope },
-    { to: '/rewards', label: 'Reward requests', icon: Gift, badge: 'pendingRedemptions' },
+    { to: '/rewards', label: 'Rewards & gifts', icon: Gift, badge: 'pendingGifts' },
     { to: '/users', label: 'Users & access', icon: UserCog, badge: 'pendingUsers' },
   ],
   surgeon: [
@@ -75,7 +75,7 @@ function useBadges(role) {
   });
   return role === 'admin'
     ? admin.data || {}
-    : { availableRewards: surgeon.data?.available || 0 };
+    : { availableRewards: surgeon.data?.openGifts || 0 };
 }
 
 function Shell({ children }) {
@@ -84,7 +84,7 @@ function Shell({ children }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const badges = useBadges(user.role);
   const nav = NAV[user.role] || [];
-  const adminAlerts = (badges.pendingRedemptions || 0) + (badges.pendingUsers || 0);
+  const adminAlerts = (badges.pendingGifts || 0) + (badges.pendingUsers || 0);
 
   const sidebar = (
     <nav className="flex flex-col gap-1 px-3" aria-label="Main">
@@ -151,7 +151,7 @@ function Shell({ children }) {
           <div className="flex items-center gap-2 sm:gap-3">
             {user.role === 'admin' && (
               <Link
-                to={badges.pendingRedemptions ? '/rewards' : '/users'}
+                to={badges.pendingGifts ? '/rewards' : '/users'}
                 className="relative rounded-xl p-2 text-ink-2 hover:bg-surface-2"
                 aria-label={`${adminAlerts} items need attention`}
               >

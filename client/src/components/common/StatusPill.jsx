@@ -1,4 +1,4 @@
-import { Ban, CheckCircle2, Clock, Gift, PackageCheck, XCircle } from 'lucide-react';
+import { Ban, CheckCircle2, Clock, Gift, PackageCheck, Truck, XCircle } from 'lucide-react';
 
 // Status always shows icon + text, never color alone.
 const MAP = {
@@ -10,6 +10,11 @@ const MAP = {
   approved: { label: 'Approved', icon: CheckCircle2, cls: 'bg-brand-wash text-brand-ink' },
   fulfilled: { label: 'Delivered', icon: PackageCheck, cls: 'bg-good-wash text-good-ink' },
   rejected: { label: 'Rejected', icon: XCircle, cls: 'bg-critical-wash text-critical' },
+  // milestone gifts
+  preparing: { label: 'Gift being prepared', icon: Gift, cls: 'bg-amber-wash text-warning-ink' },
+  dispatched: { label: 'Dispatched', icon: Truck, cls: 'bg-brand-wash text-brand-ink' },
+  delivered: { label: 'Delivered', icon: PackageCheck, cls: 'bg-good-wash text-good-ink' },
+  closed: { label: 'Closed', icon: XCircle, cls: 'bg-surface-2 text-muted' },
 };
 
 export default function StatusPill({ status }) {

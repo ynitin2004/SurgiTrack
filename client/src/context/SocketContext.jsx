@@ -12,7 +12,7 @@ const SocketContext = createContext({ socket: null, connected: false, lastEventA
 // One live connection per logged-in session. Cache wiring (see AGENT.md):
 //   admin:   stats:update -> ['summary'] replaced in place
 //            surgery:change / surgeon:change -> lists invalidated
-//            redemption:* / user:registered -> admin badge + lists invalidated
+//            gift:updated / user:registered -> admin badge + lists invalidated
 //   surgeon: my:surgery-change / reward:update -> own profile, cases, rewards refetch
 export function SocketProvider({ children }) {
   const { token, user, logout } = useAuth();
@@ -47,15 +47,15 @@ export function SocketProvider({ children }) {
         touch();
       });
       s.on('surgery:change', () => {
-        invalidate('surgeries', 'surgeon', 'surgeons');
+        // new cases can unlock trophy milestones -> refresh the gift worklist too
+        invalidate('surgeries', 'surgeon', 'surgeons', 'admin-gifts', 'admin-counts');
         touch();
       });
       s.on('surgeon:change', () => {
         invalidate('surgeons', 'surgeon');
         touch();
       });
-      s.on('redemption:new', () => invalidate('admin-counts', 'redemptions'));
-      s.on('redemption:updated', () => invalidate('admin-counts', 'redemptions'));
+      s.on('gift:updated', () => invalidate('admin-counts', 'admin-gifts'));
       s.on('user:registered', () => invalidate('admin-counts', 'admin-users'));
     } else {
       s.on('my:surgery-change', () => {

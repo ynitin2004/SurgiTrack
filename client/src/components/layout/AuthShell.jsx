@@ -3,7 +3,7 @@ import { Activity, Gift, LineChart, ShieldCheck } from 'lucide-react';
 const FEATURES = [
   { icon: LineChart, title: 'Live surgery analytics', text: 'Totals, trends and surgeon rankings that update the moment a case is recorded.' },
   { icon: ShieldCheck, title: 'Role-based access', text: 'Admins see the whole programme; surgeons see only their own cases.' },
-  { icon: Gift, title: 'Milestone rewards', text: 'Every 50 completed cases earns a surgeon a free instrument.' },
+  { icon: Gift, title: 'Trophy rewards', text: 'Trophy badges and customised gifts at 50, 100, 200, 500 and 1,000 surgeries.' },
 ];
 
 // Split-screen frame for the login and registration pages.

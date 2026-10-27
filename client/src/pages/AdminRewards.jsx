@@ -1,62 +1,74 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Check, Gift, PackageCheck, Trophy, X } from 'lucide-react';
+import { BadgeCheck, Gift, PackageCheck, Pencil, Search, Send, X } from 'lucide-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import Card from '../components/common/Card';
 import Modal from '../components/common/Modal';
 import StatusPill from '../components/common/StatusPill';
-import { btnDanger, btnGhost, btnSmall, control, errorMessage } from '../components/common/ui';
+import TierBadge from '../components/common/TierBadge';
+import TrophyIcon from '../components/rewards/TrophyIcon';
+import { btnDanger, btnGhost, btnPrimary, btnSmall, control, errorMessage } from '../components/common/ui';
 import { initials } from '../components/surgeon/SurgeonProfileView';
-import { fmtNumber } from '../utils/format';
+import { useDebounced } from '../hooks/useDebounced';
+import { fmtDate, fmtNumber } from '../utils/format';
+import { MILESTONE_TIERS } from '../utils/tier';
 import { PageHeader } from './Dashboard';
 
 const TABS = [
-  { key: 'requested', label: 'New' },
-  { key: 'approved', label: 'Approved' },
-  { key: 'fulfilled', label: 'Delivered' },
-  { key: 'rejected', label: 'Rejected' },
+  { key: 'preparing', label: 'To send' },
+  { key: 'dispatched', label: 'Dispatched' },
+  { key: 'delivered', label: 'Delivered' },
+  { key: 'closed', label: 'Closed' },
   { key: '', label: 'All' },
 ];
+const when = (iso) => (iso ? fmtDate(new Date(iso).getTime()) : '');
 
-const fmtWhen = (iso) =>
-  new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-
+// Admin: every surgeon who reached a trophy milestone, and the customised gift
+// the SSI team sends for each one (preparing -> dispatched -> delivered).
 export default function AdminRewards() {
   const queryClient = useQueryClient();
   const toast = useToast();
-  const [tab, setTab] = useState('requested');
-  const [rejecting, setRejecting] = useState(null);
-  const [reason, setReason] = useState('');
+  const [tab, setTab] = useState('preparing');
+  const [tier, setTier] = useState('');
+  const [search, setSearch] = useState('');
+  const debounced = useDebounced(search);
+  const [editing, setEditing] = useState(null); // { surgeon, milestone, mode: 'send'|'edit' }
+  const [closing, setClosing] = useState(null);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['redemptions', 'all'],
-    queryFn: () => api.get('/admin/redemptions').then((r) => r.data),
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['admin-gifts'],
+    queryFn: () => api.get('/admin/gifts').then((r) => r.data),
   });
-  const all = data?.items || [];
-  const items = tab ? all.filter((r) => r.status === tab) : all;
-  const count = (k) => (k ? all.filter((r) => r.status === k).length : all.length);
 
   const update = useMutation({
-    mutationFn: ({ id, status, adminNote }) => api.patch(`/admin/redemptions/${id}`, { status, adminNote }).then((r) => r.data.redemption),
-    onSuccess: (r) => {
-      queryClient.invalidateQueries({ queryKey: ['redemptions'] });
+    mutationFn: ({ surgeonId, tier: t, ...body }) => api.patch(`/admin/gifts/${surgeonId}/${t}`, body).then((r) => r.data.gift),
+    onSuccess: (g, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-gifts'] });
       queryClient.invalidateQueries({ queryKey: ['admin-counts'] });
-      const verb = { approved: 'approved', fulfilled: 'marked as delivered', rejected: 'rejected' }[r.status];
-      toast(`${r.surgeonName}'s request ${verb}.`, 'success');
-      setRejecting(null);
-      setReason('');
+      const verb = { dispatched: vars.edit ? 'updated' : 'marked as dispatched', delivered: 'marked as delivered', closed: 'closed' }[g.status];
+      toast(`${g.surgeonName}'s ${g.label} gift ${verb}.`, 'success');
+      setEditing(null);
+      setClosing(null);
     },
     onError: (err) => toast(errorMessage(err), 'error'),
   });
 
+  const surgeons = useMemo(() => {
+    const q = debounced.trim().toLowerCase();
+    return (data?.surgeons || [])
+      .filter((s) => !q || `${s.surgeonName} ${s.hospitalName || ''}`.toLowerCase().includes(q))
+      .map((s) => ({ ...s, shown: s.milestones.filter((m) => (!tab || m.status === tab) && (!tier || m.tier === tier)) }))
+      .filter((s) => s.shown.length);
+  }, [data, debounced, tab, tier]);
+
+  const counts = data?.counts || {};
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Reward requests"
-        subtitle={`Surgeons earn one free instrument for every ${data?.every || 50} completed cases`}
-      />
+    <div className="space-y-5 sm:space-y-6">
+      <PageHeader title="Rewards & gifts" subtitle="Trophy badges and customised gifts at 50, 100, 200, 500 and 1,000 surgeries" />
 
       <div className="flex flex-wrap gap-2" role="tablist">
         {TABS.map((t) => (
@@ -69,138 +81,247 @@ export default function AdminRewards() {
               tab === t.key ? 'bg-brand text-white shadow-sm' : 'border border-line bg-surface text-ink-2 hover:bg-surface-2'
             }`}
           >
-            {t.label} <span className="tabular ml-1 opacity-75">{count(t.key)}</span>
+            {t.label} <span className="tabular ml-1 opacity-75">{t.key ? counts[t.key] || 0 : total}</span>
           </button>
         ))}
       </div>
 
+      <div className="grid grid-cols-1 gap-3 sm:flex sm:flex-wrap">
+        <div className="relative w-full sm:w-80">
+          <Search size={16} className="absolute top-1/2 left-3.5 -translate-y-1/2 text-muted" aria-hidden />
+          <input className={`${control} pl-10`} placeholder="Search surgeon or hospital…" aria-label="Search surgeons" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <select className={`${control} w-full sm:w-auto`} aria-label="Filter by trophy" value={tier} onChange={(e) => setTier(e.target.value)}>
+          <option value="">All trophies</option>
+          {MILESTONE_TIERS.map((t) => (
+            <option key={t.key} value={t.key}>
+              {t.label} · {fmtNumber(t.min)} surgeries
+            </option>
+          ))}
+        </select>
+      </div>
+
       {isLoading ? (
         <div className="text-muted">Loading…</div>
-      ) : !items.length ? (
+      ) : error ? (
+        <p className="text-critical">⚠ {errorMessage(error)}</p>
+      ) : !surgeons.length ? (
         <Card>
           <div className="flex flex-col items-center py-10 text-center">
-            <span className="rounded-2xl bg-violet-wash p-4 text-violet" aria-hidden>
-              <Gift size={28} />
-            </span>
-            <p className="mt-4 font-bold text-ink">No {tab ? TABS.find((t) => t.key === tab).label.toLowerCase() : ''} requests</p>
-            <p className="mt-1 text-sm text-muted">Requests appear here — and as a popup — the moment a surgeon redeems a milestone.</p>
+            <TrophyIcon tier="gold" size={56} />
+            <p className="mt-4 font-bold text-ink">Nothing here</p>
+            <p className="mt-1 text-sm text-muted">
+              {tab === 'preparing' ? 'Every unlocked trophy already has its gift on the way.' : 'No gifts match these filters.'}
+            </p>
           </div>
         </Card>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {items.map((r) => (
-            <article key={r.id} className="rounded-2xl border border-line bg-surface p-5 shadow-card">
-              <div className="flex items-start gap-3">
-                <span className="bg-reward flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-extrabold text-white" aria-hidden>
-                  {initials(r.surgeonName)}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <Link to={`/surgeons/${r.surgeonId}`} className="font-bold text-ink hover:text-brand">
-                    {r.surgeonName}
-                  </Link>
-                  <p className="truncate text-xs text-muted">{r.email}</p>
-                </div>
-                <StatusPill status={r.status} />
-              </div>
-
-              <div className="mt-4 grid gap-3 rounded-xl bg-surface-2 p-4 text-sm sm:grid-cols-2">
-                <div>
-                  <p className="label-caps text-muted">Milestone</p>
-                  <p className="mt-1 flex items-center gap-1.5 font-bold text-ink">
-                    <Trophy size={14} className="text-violet" aria-hidden /> {fmtNumber(r.milestone)} cases
-                    <span className="font-medium text-muted">({fmtNumber(r.caseCountAtRequest)} total)</span>
-                  </p>
-                </div>
-                <div>
-                  <p className="label-caps text-muted">Instrument</p>
-                  <p className="mt-1 font-bold text-ink">{r.instrument}</p>
-                </div>
-                {r.note && (
-                  <div className="sm:col-span-2">
-                    <p className="label-caps text-muted">Surgeon's note</p>
-                    <p className="mt-1 text-ink-2">{r.note}</p>
+        <ul className="grid gap-4 lg:grid-cols-2">
+          {surgeons.map((s) => (
+            <li key={s.surgeonId}>
+              <article className="h-full rounded-2xl border border-line bg-surface p-4 shadow-card sm:p-5">
+                <div className="flex items-start gap-3">
+                  <span className="bg-reward flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-extrabold text-white" aria-hidden>
+                    {initials(s.surgeonName)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <Link to={`/surgeons/${s.surgeonId}`} className="font-bold break-words text-ink hover:text-brand">
+                        {s.surgeonName}
+                      </Link>
+                      <TierBadge count={s.caseCount} size="sm" />
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted">
+                      {[s.hospitalName, `${fmtNumber(s.caseCount)} surgeries`].filter(Boolean).join(' · ')}
+                    </p>
+                    {s.account && (
+                      <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-good-ink">
+                        <BadgeCheck size={12} aria-hidden /> Portal account · {s.account}
+                      </p>
+                    )}
                   </div>
-                )}
-                {r.adminNote && (
-                  <div className="sm:col-span-2">
-                    <p className="label-caps text-muted">Admin note</p>
-                    <p className="mt-1 text-ink-2">{r.adminNote}</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs text-muted">
-                  Requested {fmtWhen(r.createdAt)}
-                  {r.handledBy && ` · updated by ${r.handledBy}`}
-                </p>
-                <div className="flex gap-2">
-                  {['requested', 'approved'].includes(r.status) && (
-                    <button
-                      className={`${btnSmall} border border-line text-critical hover:bg-critical-wash`}
-                      onClick={() => setRejecting(r)}
-                      disabled={update.isPending}
-                    >
-                      <X size={14} aria-hidden /> Reject
-                    </button>
-                  )}
-                  {r.status === 'requested' && (
-                    <button
-                      className={`${btnSmall} bg-brand text-white hover:brightness-110`}
-                      onClick={() => update.mutate({ id: r.id, status: 'approved' })}
-                      disabled={update.isPending}
-                    >
-                      <Check size={14} aria-hidden /> Approve
-                    </button>
-                  )}
-                  {r.status === 'approved' && (
-                    <button
-                      className={`${btnSmall} bg-good text-white hover:brightness-110`}
-                      onClick={() => update.mutate({ id: r.id, status: 'fulfilled', adminNote: 'Delivered' })}
-                      disabled={update.isPending}
-                    >
-                      <PackageCheck size={14} aria-hidden /> Mark delivered
-                    </button>
-                  )}
                 </div>
-              </div>
-            </article>
+
+                <ul className="mt-4 space-y-3">
+                  {s.shown.map((m) => (
+                    <li key={m.tier} className="rounded-xl bg-surface-2 p-3 sm:p-4">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <TrophyIcon tier={m.tier} size={34} className="shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-ink">{m.label} trophy</p>
+                          <p className="tabular text-xs text-muted">{fmtNumber(m.at)} surgeries milestone</p>
+                        </div>
+                        <StatusPill status={m.status} />
+                      </div>
+                      {(m.gift || m.adminNote) && (
+                        <div className="mt-3 space-y-1 text-sm">
+                          {m.gift && (
+                            <p className="text-ink-2">
+                              <span className="label-caps mr-1.5 text-muted">Gift</span>
+                              <span className="font-semibold text-ink">{m.gift}</span>
+                            </p>
+                          )}
+                          {m.adminNote && (
+                            <p className="text-ink-2">
+                              <span className="label-caps mr-1.5 text-muted">{m.status === 'closed' ? 'Reason' : 'Note'}</span>
+                              {m.adminNote}
+                            </p>
+                          )}
+                          {(m.dispatchedAt || m.deliveredAt) && (
+                            <p className="text-xs text-muted">
+                              {[m.dispatchedAt && `Dispatched ${when(m.dispatchedAt)}`, m.deliveredAt && `Delivered ${when(m.deliveredAt)}`].filter(Boolean).join(' · ')}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {['preparing', 'dispatched'].includes(m.status) && (
+                        <div className="mt-3 flex flex-wrap justify-end gap-2">
+                          <button className={`${btnSmall} border border-line text-ink-2 hover:bg-surface`} onClick={() => setClosing({ surgeon: s, milestone: m })} disabled={update.isPending}>
+                            <X size={14} aria-hidden /> Close
+                          </button>
+                          {m.status === 'preparing' ? (
+                            <button className={`${btnSmall} bg-brand text-white hover:brightness-110`} onClick={() => setEditing({ surgeon: s, milestone: m, mode: 'send' })} disabled={update.isPending}>
+                              <Send size={14} aria-hidden /> Send gift
+                            </button>
+                          ) : (
+                            <>
+                              <button className={`${btnSmall} border border-line text-ink-2 hover:bg-surface`} onClick={() => setEditing({ surgeon: s, milestone: m, mode: 'edit' })} disabled={update.isPending}>
+                                <Pencil size={14} aria-hidden /> Edit gift
+                              </button>
+                              <button
+                                className={`${btnSmall} bg-good text-white hover:brightness-110`}
+                                onClick={() => update.mutate({ surgeonId: s.surgeonId, tier: m.tier, status: 'delivered' })}
+                                disabled={update.isPending}
+                              >
+                                <PackageCheck size={14} aria-hidden /> Mark delivered
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
 
-      <Modal open={Boolean(rejecting)} onClose={() => setRejecting(null)} title="Reject reward request" size="sm">
-        <form
-          className="space-y-4 p-5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            update.mutate({ id: rejecting.id, status: 'rejected', adminNote: reason });
-          }}
-        >
-          <p className="text-sm text-ink-2">
-            {rejecting?.surgeonName} will see this reason and can choose a different instrument for the same milestone.
-          </p>
-          <label className="block text-sm font-semibold text-ink">
-            Reason
-            <textarea
-              className={`${control} mt-1.5 min-h-24`}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              maxLength={500}
-              required
-              placeholder="e.g. This instrument is out of stock — please choose another"
-            />
-          </label>
-          <div className="flex gap-2">
-            <button type="button" className={`${btnGhost} flex-1`} onClick={() => setRejecting(null)}>
-              Cancel
-            </button>
-            <button type="submit" className={`${btnDanger} flex-1`} disabled={!reason.trim() || update.isPending}>
-              Reject request
-            </button>
-          </div>
-        </form>
-      </Modal>
+      <GiftModal
+        key={editing ? `gift-${editing.surgeon.surgeonId}-${editing.milestone.tier}-${editing.mode}` : 'gift-none'}
+        editing={editing}
+        busy={update.isPending}
+        onClose={() => setEditing(null)}
+        onSave={(gift, adminNote) =>
+          update.mutate({ surgeonId: editing.surgeon.surgeonId, tier: editing.milestone.tier, status: 'dispatched', gift, adminNote, edit: editing.mode === 'edit' })
+        }
+      />
+      <CloseModal
+        key={closing ? `close-${closing.surgeon.surgeonId}-${closing.milestone.tier}` : 'close-none'}
+        closing={closing}
+        busy={update.isPending}
+        onClose={() => setClosing(null)}
+        onConfirm={(adminNote) => update.mutate({ surgeonId: closing.surgeon.surgeonId, tier: closing.milestone.tier, status: 'closed', adminNote })}
+      />
     </div>
+  );
+}
+
+function GiftModal({ editing, busy, onClose, onSave }) {
+  const [gift, setGift] = useState(editing?.milestone.gift || '');
+  const [note, setNote] = useState(editing?.milestone.adminNote || '');
+  if (!editing) return null;
+  const { surgeon, milestone, mode } = editing;
+  return (
+    <Modal open onClose={onClose} title={mode === 'send' ? 'Send customised gift' : 'Edit gift details'} size="md">
+      <form
+        className="space-y-4 p-5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSave(gift, note);
+        }}
+      >
+        <div className="flex items-center gap-3 rounded-xl bg-violet-wash p-3">
+          <TrophyIcon tier={milestone.tier} size={40} />
+          <div className="min-w-0 text-sm">
+            <p className="font-bold text-ink">{surgeon.surgeonName}</p>
+            <p className="text-ink-2">
+              {milestone.label} trophy · {fmtNumber(milestone.at)} surgeries ({fmtNumber(surgeon.caseCount)} total)
+            </p>
+          </div>
+        </div>
+        <label className="block text-sm font-semibold text-ink">
+          Gift
+          <input
+            className={`${control} mt-1.5`}
+            value={gift}
+            onChange={(e) => setGift(e.target.value)}
+            maxLength={300}
+            required
+            autoFocus
+            placeholder="e.g. Engraved Gold trophy + personalised surgical loupes"
+          />
+        </label>
+        <label className="block text-sm font-semibold text-ink">
+          Note to the surgeon <span className="font-normal text-muted">(optional)</span>
+          <textarea
+            className={`${control} mt-1.5 min-h-20`}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            maxLength={500}
+            placeholder="e.g. Couriered to your hospital — expected by 5 Nov"
+          />
+        </label>
+        <p className="text-xs text-muted">{surgeon.account ? 'The surgeon sees the gift and note in their portal right away.' : 'This surgeon has no portal account yet; the record is kept for your team.'}</p>
+        <div className="flex gap-2">
+          <button type="button" className={`${btnGhost} flex-1`} onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className={`${btnPrimary} flex-1`} disabled={!gift.trim() || busy}>
+            <Gift size={16} aria-hidden /> {mode === 'send' ? 'Mark as dispatched' : 'Save changes'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function CloseModal({ closing, busy, onClose, onConfirm }) {
+  const [reason, setReason] = useState('');
+  if (!closing) return null;
+  return (
+    <Modal open onClose={onClose} title="Close this milestone?" size="sm">
+      <form
+        className="space-y-4 p-5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onConfirm(reason);
+        }}
+      >
+        <p className="text-sm text-ink-2">
+          {closing.surgeon.surgeonName}'s {closing.milestone.label} gift will be closed without sending. They will see this reason.
+        </p>
+        <label className="block text-sm font-semibold text-ink">
+          Reason
+          <textarea
+            className={`${control} mt-1.5 min-h-20`}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            maxLength={500}
+            required
+            placeholder="e.g. Already rewarded at the annual surgeons' meet"
+          />
+        </label>
+        <div className="flex gap-2">
+          <button type="button" className={`${btnGhost} flex-1`} onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className={`${btnDanger} flex-1`} disabled={!reason.trim() || busy}>
+            Close milestone
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }

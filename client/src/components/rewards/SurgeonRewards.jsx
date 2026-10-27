@@ -2,69 +2,59 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { useQuery } from '@tanstack/react-query';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
-import RewardModal from './RewardModal';
+import CelebrationModal from './CelebrationModal';
 
-const RewardsContext = createContext({ rewards: null, openRedeem: () => {} });
-const DISMISSED_KEY = 'reward-popup-dismissed';
+const RewardsContext = createContext({ rewards: null, openCelebration: () => {} });
+const SEEN_KEY = 'trophy-celebrated';
 
-function readDismissed() {
+function readSeen() {
   try {
-    return JSON.parse(sessionStorage.getItem(DISMISSED_KEY)) || [];
+    return JSON.parse(sessionStorage.getItem(SEEN_KEY)) || [];
   } catch {
     return [];
   }
 }
 
-// Mounted once for surgeon accounts. Pops the reward card automatically when
-// there is an unredeemed milestone the surgeon hasn't dismissed this session —
-// including live, when a new case pushes them over the next milestone.
+// Mounted once for surgeon accounts. Celebrates a newly unlocked trophy (its
+// gift still being prepared) once per session — including live, when a new
+// case pushes the surgeon over the next milestone.
 export function SurgeonRewardsProvider({ children }) {
   const { user } = useAuth();
-  const [milestone, setMilestone] = useState(null);
+  const [tier, setTier] = useState(null);
 
   const { data: rewards } = useQuery({
     queryKey: ['my-rewards'],
     queryFn: () => api.get('/me/rewards').then((r) => r.data),
   });
-  const { data: profile } = useQuery({
-    queryKey: ['my-profile'],
-    queryFn: () => api.get('/me/profile').then((r) => r.data),
-  });
 
-  const available = rewards?.milestones.filter((m) => m.status === 'available').map((m) => m.milestone) || [];
-  const availableKey = available.join(',');
+  // newest first, so the highest new trophy is celebrated
+  const fresh = (rewards?.milestones || []).filter((m) => m.status === 'preparing').map((m) => m.tier);
+  const freshKey = fresh.join(',');
 
   useEffect(() => {
-    if (milestone != null || !availableKey) return;
-    const dismissed = readDismissed();
-    const fresh = availableKey.split(',').map(Number).filter((m) => !dismissed.includes(m));
-    if (fresh.length) setMilestone(Math.max(...fresh));
-  }, [availableKey, milestone]);
+    if (tier != null || !freshKey) return;
+    const seen = readSeen();
+    const first = freshKey.split(',').find((t) => !seen.includes(t));
+    if (first) setTier(first);
+  }, [freshKey, tier]);
 
   const close = useCallback(() => {
-    sessionStorage.setItem(DISMISSED_KEY, JSON.stringify([...new Set([...readDismissed(), ...available])]));
-    setMilestone(null);
+    sessionStorage.setItem(SEEN_KEY, JSON.stringify([...new Set([...readSeen(), ...fresh])]));
+    setTier(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableKey]);
+  }, [freshKey]);
 
-  const openRedeem = useCallback(
-    (m) => {
-      if (m != null) setMilestone(m);
-      else if (availableKey) setMilestone(Math.max(...availableKey.split(',').map(Number)));
-    },
-    [availableKey]
-  );
+  const openCelebration = useCallback((t) => setTier(t || rewards?.tier?.tier || null), [rewards]);
 
   return (
-    <RewardsContext.Provider value={{ rewards, openRedeem }}>
+    <RewardsContext.Provider value={{ rewards, openCelebration }}>
       {children}
-      <RewardModal
-        open={milestone != null}
+      <CelebrationModal
+        open={tier != null}
         onClose={close}
-        milestone={milestone}
+        milestone={rewards?.milestones.find((m) => m.tier === tier) || null}
         rewards={rewards}
         name={user?.name}
-        favourites={(profile?.instruments || []).map((i) => i.name)}
       />
     </RewardsContext.Provider>
   );
