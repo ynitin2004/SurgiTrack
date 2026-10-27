@@ -18,7 +18,7 @@ The database `sutra_dev` belongs to another application that already uses about 
 
 - No seed scripts, test inserts, migrations, `save()`, `update*()`, `delete*()`, and no new collections or indexes.
 - Mongoose `autoIndex` and `autoCreate` are switched off in [server/src/config/db.js](server/src/config/db.js). Keep them off.
-- App-owned data (portal user accounts, reward requests) is stored in **`server/data/app-store.json`** ([server/src/store/store.js](server/src/store/store.js)), not in MongoDB. The file is git-ignored. It is written atomically, and every check-then-insert runs with no `await` in between, which prevents races. To move this data to a separate database later, replace that module.
+- App-owned data (portal user accounts, milestone gift records) is stored in **`server/data/app-store.json`** ([server/src/store/store.js](server/src/store/store.js)), not in MongoDB. The file is git-ignored. It is written atomically, and every check-then-insert runs with no `await` in between, which prevents races. To move this data to a separate database later, replace that module.
 - The built-in admin login comes from `server/.env` (`ADMIN_EMAIL` / `ADMIN_PASSWORD_HASH`). It cannot be disabled from the UI, so an admin can never be locked out.
 - To test realtime updates, wait for a real change made by the owning application. Don't insert test data.
 
@@ -26,14 +26,14 @@ The database `sutra_dev` belongs to another application that already uses about 
 
 | Role | Can see | How the account is created |
 |---|---|---|
-| `admin` | Everything: the dashboard, every surgery, the surgeon directory, reward requests, users | The built-in `.env` admin, or added by an admin on **Users & access** |
+| `admin` | Everything: the dashboard, every surgery, the surgeon directory, rewards & gifts, users | The built-in `.env` admin, or added by an admin on **Users & access** |
 | `surgeon` | Their own profile, cases and rewards, plus read-only dashboards and cases of **teammates aligned to the same hospital** (My team). The server checks the hospital on every request. | Self-registration at `/register` creates a **pending** account. An admin approves it and **links it to a `surgeon_info` profile**. Admins can also create surgeon accounts directly. |
 
 - One `surgeon_info` profile can be linked to only one enabled account. Disabling an account signs that user out immediately: their socket is disconnected and their token is rejected on the next request.
-- **Rewards:** every `REWARD_EVERY_CASES` (default 50) completed cases unlocks one free instrument (50, 100, 150…), and each milestone can be redeemed once. ([server/src/services/rewards.js](server/src/services/rewards.js))
-  - When a surgeon logs in, or a new case pushes them past a milestone, a popup lets them choose an instrument and redeem it. The instrument list is the cleaned set of instrument names found in surgery records. The server re-counts the surgeon's cases before accepting any request.
-  - Each request creates a `redemption:new` event, which shows a popup on every admin screen that is open. Admins who log in later get a popup listing the pending requests.
-  - The admin moves each request through the statuses `requested → approved → fulfilled`, or to `rejected`, which requires a reason. A rejected request frees that milestone, so the surgeon can choose again.
+- **Rewards — trophy badges + customised gifts** ([server/src/services/rewards.js](server/src/services/rewards.js), mirrored in [client/src/utils/tier.js](client/src/utils/tier.js)): 0–49 surgeries = Beginner (no badge); milestones at **50 Bronze · 100 Silver · 200 Gold · 500 Champion · 1000 Legend**. Each milestone unlocks a trophy badge (shown after the surgeon's name everywhere) and a gift that the SSI team customises and sends — surgeons do not choose or request anything.
+  - Gift workflow per surgeon + milestone: `preparing` (implicit, no record yet) → `dispatched` (admin enters the gift; optional note to the surgeon) → `delivered`; `preparing`/`dispatched` → `closed` with a reason (e.g. rewarded earlier). Records live in `app-store.json` → `rewards`; the server re-counts surgeries before any change.
+  - Surgeons: a trophy popup on login / live when a milestone unlocks, the dashboard rewards card, and **My rewards** (trophy cabinet + gift tracker). Admins: **Rewards & gifts** lists every surgeon profile past a milestone (with or without a portal account), a login popup with gifts still to send, and a live popup when a new case unlocks a milestone.
+  - The old free-instrument redemptions (`redemptions` in the store, `REWARD_EVERY_CASES`) are retired.
 
 ## 3. Tech stack (MERN)
 
@@ -113,10 +113,10 @@ mama_project/
 | `stats:update` | same shape as `GET /api/stats/summary` | `setQueryData(['summary'])` |
 | `surgery:change` | `{ operationType, doc }` | invalidate `surgeries`, `surgeon` |
 | `surgeon:change` | `{ operationType, doc }` | invalidate `surgeons`, `surgeon` |
-| `redemption:new` / `redemption:updated` | redemption | admin popup ([AdminAlerts](client/src/components/rewards/AdminAlerts.jsx)); invalidate `redemptions`, `admin-counts` |
+| `gift:updated` | gift milestone | invalidate `admin-gifts`, `admin-counts` (new milestones arrive via `surgery:change`, which also refreshes these; [AdminAlerts](client/src/components/rewards/AdminAlerts.jsx) pops up for newly unlocked ones) |
 | `user:registered` | `{ name }` | admin toast; invalidate `admin-users` |
 | `my:surgery-change` *(surgeon room only)* | `{ operationType }` | invalidate `my-profile`, `my-rewards`, `surgeries` |
-| `reward:update` *(surgeon room only)* | `{ milestone, status }` | invalidate `my-rewards` |
+| `reward:update` *(surgeon room only)* | `{ tier, status }` | invalidate `my-rewards` |
 
 Rooms: `admins`, `surgeon:<surgeonInfoId>` and `user:<accountId>`. The socket joins its rooms when the handshake is authenticated ([server/src/index.js](server/src/index.js)). Every helper for sending events is in [sockets/notify.js](server/src/sockets/notify.js).
 
@@ -128,8 +128,7 @@ Roles are enforced on the server by `requireRole()` in [routes/index.js](server/
 |---|---|---|---|
 | POST | `/api/auth/register` | public | creates a pending surgeon account |
 | GET | `/api/me/profile` | surgeon | own profile: category mix (pie chart), instrument usage (bar chart), recent cases |
-| GET | `/api/me/rewards` · `/api/me/instrument-options` | surgeon | milestone state · instruments that can be chosen |
-| POST | `/api/me/rewards/redeem` | surgeon | `{ milestone, instrument, note }` |
+| GET | `/api/me/rewards` | surgeon | current trophy, progress to the next milestone, trophy ladder and gift status per unlocked milestone |
 | GET | `/api/me/team` | surgeon | every surgeon aligned to my hospital (`surgeon_info.alignedHospital`) with card stats |
 | GET | `/api/me/team/:id` | surgeon | a teammate's full profile — 403 unless aligned to the same hospital ([services/team.js](server/src/services/team.js)) |
 | GET | `/api/me/inventory/new` | surgeon | newest `master_instrument_types` (shown by the RA-ONE mascot) |
@@ -138,8 +137,8 @@ Roles are enforced on the server by `requireRole()` in [routes/index.js](server/
 | GET | `/api/admin/counts` | admin | badge counts |
 | GET/POST | `/api/admin/users` | admin | list users · create a user (`role`, `surgeonId` for surgeons) |
 | PATCH | `/api/admin/users/:id` | admin | `{ action: approve\|reject\|disable\|enable, surgeonId? }` |
-| GET | `/api/admin/redemptions` | admin | all reward requests (`?status=`) |
-| PATCH | `/api/admin/redemptions/:id` | admin | `{ status, adminNote }` |
+| GET | `/api/admin/gifts` | admin | every surgeon past a milestone with each gift's status, plus status counts |
+| PATCH | `/api/admin/gifts/:surgeonId/:tier` | admin | `{ status: dispatched\|delivered\|closed, gift?, adminNote? }` |
 
 Routes from the first version (every route below is admin-only, except `/api/surgeries`, which a surgeon can call but only gets their own cases):
 
@@ -163,7 +162,7 @@ Routes from the first version (every route below is admin-only, except `/api/sur
 - "Hospitals served" counts only hospital ids that exist in `hospitals`; cases pointing at an unknown hospital id are reported as `unlistedHospitalCases`.
 - Dashboard export (surgeon pages → Export → Monthly / Quarterly / All surgeries): PowerPoint via `pptxgenjs` (cover, overview, monthly trend, types, instruments, procedures, case log — native editable charts) and Excel via `exceljs` (Summary sheet with chart images drawn in [utils/chartImages.js](client/src/utils/chartImages.js), plus filterable data sheets incl. every case). Both are loaded on demand ([utils/exportReport.js](client/src/utils/exportReport.js)).
 - Surgeon sections "Upcoming SSI events" and "Social profile" are static content: edit [data/ssiEvents.js](client/src/data/ssiEvents.js) (six slots, placeholders until a slot has a `title`) and [data/socialProfiles.js](client/src/data/socialProfiles.js) (YouTube channels + photos in `client/src/assets/social/`).
-- Surgeon tiers (UI only, [utils/tier.js](client/src/utils/tier.js)): 0–19 Bronze · 20–49 Silver · 50–99 Gold · 100–499 Champion · 500+ Legend.
+- Surgeon trophy tiers ([utils/tier.js](client/src/utils/tier.js) + server `rewards.js`): 0–49 Beginner (no badge) · 50 Bronze · 100 Silver · 200 Gold · 500 Champion · 1000 Legend. Trophy artwork: [TrophyIcon](client/src/components/rewards/TrophyIcon.jsx).
 
 ## 8. Running locally
 
