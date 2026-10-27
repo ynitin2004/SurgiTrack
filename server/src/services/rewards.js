@@ -1,73 +1,163 @@
+const Surgeon = require('../models/Surgeon');
 const store = require('../store/store');
 const sd = require('./surgeryData');
-const { countSurgeries, INSTRUMENT_STAGES } = require('./surgeonProfile');
+const { countSurgeries } = require('./surgeonProfile');
 
-// Every REWARD_EVERY_CASES completed surgeries (50, 100, 150, …) unlocks one
-// free instrument. Each milestone can be redeemed once; a rejected request
-// frees the milestone so the surgeon can request again.
-const EVERY = Math.max(1, Number(process.env.REWARD_EVERY_CASES) || 50);
+// Trophy badges + customised gifts. A surgeon is a Beginner (no badge) until
+// 50 surgeries; each milestone below unlocks a trophy badge and a gift that the
+// SSI team (admin) customises and sends. Keep in sync with client/src/utils/tier.js.
+const MILESTONES = [
+  { tier: 'bronze', label: 'Bronze', at: 50 },
+  { tier: 'silver', label: 'Silver', at: 100 },
+  { tier: 'gold', label: 'Gold', at: 200 },
+  { tier: 'champion', label: 'Champion', at: 500 },
+  { tier: 'legend', label: 'Legend', at: 1000 },
+];
 
-const ACTIVE = ['requested', 'approved', 'fulfilled'];
+// Gift workflow per milestone. "preparing" is implicit (no record yet):
+//   preparing -> dispatched (gift details required) -> delivered
+//   preparing | dispatched -> closed (reason required, e.g. rewarded earlier)
+// Re-saving a dispatched gift edits its details.
 const TRANSITIONS = {
-  requested: ['approved', 'rejected'],
-  approved: ['fulfilled', 'rejected'],
-  fulfilled: [],
-  rejected: [],
+  preparing: ['dispatched', 'closed'],
+  dispatched: ['dispatched', 'delivered', 'closed'],
+  delivered: [],
+  closed: [],
 };
+const OPEN = ['preparing', 'dispatched']; // gifts still on their way
 
-function redemptionsFor(surgeonId) {
-  return store.load().redemptions.filter((r) => r.surgeonId === surgeonId);
+const reachedFor = (count) => MILESTONES.filter((m) => count >= m.at);
+const milestoneOf = (tier) => MILESTONES.find((m) => m.tier === tier) || null;
+const giftsFor = (surgeonId) => store.load().rewards.filter((g) => g.surgeonId === String(surgeonId));
+
+// public view of one reached milestone and its gift
+function milestoneView(m, gift) {
+  return {
+    tier: m.tier,
+    label: m.label,
+    at: m.at,
+    status: gift?.status || 'preparing',
+    gift: gift?.gift || null,
+    adminNote: gift?.adminNote || null,
+    dispatchedAt: gift?.dispatchedAt || null,
+    deliveredAt: gift?.deliveredAt || null,
+    updatedAt: gift?.updatedAt || null,
+  };
 }
 
-function activeRedemption(surgeonId, milestone) {
-  return redemptionsFor(surgeonId).find((r) => r.milestone === milestone && ACTIVE.includes(r.status)) || null;
-}
-
+// Badge, progress to the next trophy and every unlocked gift for one surgeon.
 async function rewardState(surgeonId) {
   const caseCount = await countSurgeries(surgeonId);
-  const earned = Math.floor(caseCount / EVERY);
-  const mine = redemptionsFor(surgeonId);
-
-  const milestones = [];
-  for (let m = earned; m >= 1; m--) {
-    const milestone = m * EVERY;
-    const active = mine.find((r) => r.milestone === milestone && ACTIVE.includes(r.status));
-    const lastRejected = mine
-      .filter((r) => r.milestone === milestone && r.status === 'rejected')
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
-    milestones.push({
-      milestone,
-      status: active ? active.status : 'available',
-      redemption: active || null,
-      lastRejection: !active && lastRejected ? { adminNote: lastRejected.adminNote, at: lastRejected.updatedAt } : null,
-    });
-  }
+  const gifts = giftsFor(surgeonId);
+  const reached = reachedFor(caseCount);
+  const current = reached.at(-1) || null;
+  const next = MILESTONES.find((m) => caseCount < m.at) || null;
+  const from = current ? current.at : 0;
+  const milestones = reached.map((m) => milestoneView(m, gifts.find((g) => g.tier === m.tier))).reverse();
 
   return {
-    every: EVERY,
     caseCount,
-    earned,
-    available: milestones.filter((m) => m.status === 'available').length,
-    nextMilestone: (earned + 1) * EVERY,
-    casesToNext: (earned + 1) * EVERY - caseCount,
-    milestones,
-    history: mine.sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    tier: current ? { tier: current.tier, label: current.label, at: current.at } : null, // null = Beginner
+    next: next ? { tier: next.tier, label: next.label, at: next.at } : null,
+    casesToNext: next ? next.at - caseCount : 0,
+    progress: next ? (caseCount - from) / (next.at - from) : 1,
+    ladder: MILESTONES.map((m) => ({ ...m, reached: caseCount >= m.at })),
+    milestones, // newest first
+    openGifts: milestones.filter((m) => OPEN.includes(m.status)).length,
   };
 }
 
-// Distinct instrument names seen in surgery records, cleaned — the catalog a
-// surgeon can choose their free instrument from. Cached for 10 minutes.
-let catalog = { at: 0, items: [] };
-async function instrumentCatalog() {
-  if (Date.now() - catalog.at < 10 * 60 * 1000 && catalog.items.length) return catalog.items;
-  // same name cleaning as the per-surgeon instrument chart
-  const rows = await sd.coll().aggregate(INSTRUMENT_STAGES).toArray();
-  const items = rows.map((r) => r.name.replace(/\s+/g, ' ').trim()).filter(Boolean);
-  catalog = {
-    at: Date.now(),
-    items,
-  };
-  return catalog.items;
+// Admin worklist: every surgeon profile that has reached at least one milestone.
+async function giftQueue() {
+  const [counts, refs, profiles] = await Promise.all([
+    sd.countsBySurgeon(),
+    sd.refs(),
+    Surgeon.find({}, { surgeonName: 1, alignedHospital: 1 }).lean(),
+  ]);
+  const db = store.load();
+  const accounts = new Map(db.users.filter((u) => u.surgeonId && u.status !== 'disabled').map((u) => [u.surgeonId, u.email]));
+  const giftsBySurgeon = new Map();
+  for (const g of db.rewards) {
+    if (!giftsBySurgeon.has(g.surgeonId)) giftsBySurgeon.set(g.surgeonId, []);
+    giftsBySurgeon.get(g.surgeonId).push(g);
+  }
+
+  const surgeons = [];
+  for (const p of profiles) {
+    const id = String(p._id);
+    const caseCount = counts.get(id) || 0;
+    const reached = reachedFor(caseCount);
+    if (!reached.length) continue;
+    const gifts = giftsBySurgeon.get(id) || [];
+    surgeons.push({
+      surgeonId: id,
+      surgeonName: p.surgeonName || 'Unnamed surgeon',
+      hospitalName: p.alignedHospital ? refs.hospitals.get(String(p.alignedHospital)) || null : null,
+      caseCount,
+      account: accounts.get(id) || null,
+      milestones: reached.map((m) => milestoneView(m, gifts.find((g) => g.tier === m.tier))).reverse(),
+    });
+  }
+  surgeons.sort((a, b) => b.caseCount - a.caseCount || a.surgeonName.localeCompare(b.surgeonName));
+  const statusCounts = { preparing: 0, dispatched: 0, delivered: 0, closed: 0 };
+  for (const s of surgeons) for (const m of s.milestones) statusCounts[m.status] += 1;
+  return { milestones: MILESTONES, surgeons, counts: statusCounts };
 }
 
-module.exports = { EVERY, TRANSITIONS, rewardState, activeRedemption, instrumentCatalog };
+class GiftError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+// Admin action on one surgeon's milestone gift. Throws GiftError on bad input.
+async function updateGift({ surgeonId, tier, status, gift, adminNote, admin }) {
+  const m = milestoneOf(tier);
+  if (!m) throw new GiftError(400, 'Unknown milestone');
+  if (!sd.isId(surgeonId)) throw new GiftError(400, 'Invalid surgeon id');
+  const profile = await Surgeon.findById(surgeonId, { surgeonName: 1 }).lean();
+  if (!profile) throw new GiftError(404, 'Surgeon not found');
+  const caseCount = await countSurgeries(surgeonId);
+  if (caseCount < m.at) throw new GiftError(400, `${profile.surgeonName} has not reached ${m.at} surgeries yet`);
+
+  const giftText = String(gift ?? '').replace(/\s+/g, ' ').trim();
+  const note = String(adminNote ?? '').trim();
+  if (giftText.length > 300) throw new GiftError(400, 'Gift details must be 300 characters or fewer');
+  if (note.length > 500) throw new GiftError(400, 'Note must be 500 characters or fewer');
+
+  // no await below this line: check-then-write cannot interleave
+  const db = store.load();
+  let record = db.rewards.find((g) => g.surgeonId === String(surgeonId) && g.tier === m.tier);
+  const from = record?.status || 'preparing';
+  if (!TRANSITIONS[from]?.includes(status)) {
+    throw new GiftError(409, `A ${from} gift cannot be marked ${status}`);
+  }
+  if (status === 'dispatched' && !giftText) throw new GiftError(400, 'Please describe the gift you are sending');
+  if (status === 'closed' && !note) throw new GiftError(400, 'Please give a reason for closing this milestone');
+
+  const now = store.now();
+  if (!record) {
+    record = { id: store.newId(), surgeonId: String(surgeonId), tier: m.tier, milestone: m.at, createdAt: now };
+    db.rewards.push(record);
+  }
+  Object.assign(record, {
+    surgeonName: profile.surgeonName,
+    status,
+    caseCountAtUpdate: caseCount,
+    updatedAt: now,
+    handledBy: admin,
+  });
+  if (giftText) record.gift = giftText;
+  if (note || status === 'closed') record.adminNote = note;
+  if (status === 'dispatched' && from !== 'dispatched') record.dispatchedAt = now;
+  if (status === 'delivered') record.deliveredAt = now;
+  await store.persist();
+  return { surgeonId: record.surgeonId, surgeonName: record.surgeonName, ...milestoneView(m, record) };
+}
+
+async function pendingGiftCount() {
+  return (await giftQueue()).counts.preparing;
+}
+
+module.exports = { MILESTONES, TRANSITIONS, rewardState, giftQueue, updateGift, pendingGiftCount, GiftError };

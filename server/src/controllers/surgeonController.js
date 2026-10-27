@@ -5,20 +5,6 @@ const sd = require('../services/surgeryData');
 const { cleanExpertise, buildSurgeonProfile } = require('../services/surgeonProfile');
 const report = require('../services/report');
 
-// One pass over surgeries -> Map(surgeonIdString -> number of surgeries).
-async function surgeryCountsBySurgeon() {
-  const rows = await sd
-    .coll()
-    .aggregate([
-      { $match: { [sd.F.surgeon]: { $nin: [null, ''] } } },
-      { $group: { _id: { $convert: { input: `$${sd.F.surgeon}`, to: 'string', onError: null, onNull: null } }, n: { $sum: 1 } } },
-    ])
-    .toArray();
-  const map = new Map();
-  for (const r of rows) if (r._id) map.set(r._id, (map.get(r._id) || 0) + r.n);
-  return map;
-}
-
 // GET /api/surgeons?page=1&limit=20&search=&sort=surgeries|name
 // surgeon_info is small (~1.2k docs), so sorting by surgery count happens in
 // memory — no indexes are needed (the DB is read-only for this app).
@@ -36,7 +22,7 @@ async function list(req, res) {
 
   const [surgeons, counts] = await Promise.all([
     Surgeon.find(match, { surgeonName: 1, areaOfExpertise: 1, alignedHospital: 1, hospitalAlignedDate: 1 }).lean(),
-    surgeryCountsBySurgeon(),
+    sd.countsBySurgeon(),
   ]);
 
   const rows = surgeons.map((s) => ({ ...s, surgeryCount: counts.get(String(s._id)) || 0 }));

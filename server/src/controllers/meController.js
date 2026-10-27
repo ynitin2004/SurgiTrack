@@ -1,5 +1,3 @@
-const store = require('../store/store');
-const notify = require('../sockets/notify');
 const { buildSurgeonProfile } = require('../services/surgeonProfile');
 const rewards = require('../services/rewards');
 const team = require('../services/team');
@@ -18,60 +16,6 @@ async function profile(req, res) {
 
 async function getRewards(req, res) {
   res.json(await rewards.rewardState(req.user.surgeonId));
-}
-
-async function instrumentOptions(req, res) {
-  res.json({ items: await rewards.instrumentCatalog() });
-}
-
-async function redeem(req, res) {
-  const surgeonId = req.user.surgeonId;
-  const milestone = Number(req.body?.milestone);
-  const instrumentRaw = String(req.body?.instrument || '').replace(/\s+/g, ' ').trim();
-  const note = String(req.body?.note || '').trim();
-
-  if (!Number.isInteger(milestone) || milestone <= 0 || milestone % rewards.EVERY !== 0) {
-    return res.status(400).json({ message: 'Invalid milestone' });
-  }
-  if (!instrumentRaw) return res.status(400).json({ message: 'Please choose an instrument' });
-  if (note.length > 500) return res.status(400).json({ message: 'Note must be 500 characters or fewer' });
-
-  const catalog = await rewards.instrumentCatalog();
-  const instrument = catalog.find((n) => n.toLowerCase() === instrumentRaw.toLowerCase());
-  if (!instrument) return res.status(400).json({ message: 'Please choose an instrument from the list' });
-
-  // eligibility is always recomputed from the live surgery data
-  const state = await rewards.rewardState(surgeonId);
-  if (milestone > state.earned * rewards.EVERY) {
-    return res.status(400).json({ message: `You have not completed ${milestone} cases yet` });
-  }
-
-  // no await between this check and the insert -> double-clicks can't create duplicates
-  if (rewards.activeRedemption(surgeonId, milestone)) {
-    return res.status(409).json({ message: 'This reward has already been requested' });
-  }
-  const redemption = {
-    id: store.newId(),
-    surgeonId,
-    userId: req.user.id,
-    surgeonName: req.user.name,
-    email: req.user.email,
-    milestone,
-    caseCountAtRequest: state.caseCount,
-    instrument,
-    note,
-    status: 'requested',
-    adminNote: '',
-    createdAt: store.now(),
-    updatedAt: store.now(),
-    handledBy: null,
-  };
-  store.load().redemptions.push(redemption);
-  await store.persist();
-
-  notify.admins('redemption:new', redemption);
-  notify.surgeon(surgeonId, 'reward:update', { milestone, status: 'requested' });
-  res.status(201).json({ redemption });
 }
 
 // GET /me/team — every surgeon aligned to my hospital, with card stats
@@ -154,8 +98,6 @@ async function getReport(req, res) {
 module.exports = {
   profile,
   getRewards,
-  instrumentOptions,
-  redeem,
   getTeam,
   teamMember,
   newInventory,

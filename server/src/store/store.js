@@ -20,7 +20,8 @@ function load() {
     data = {};
   }
   data.users ||= [];
-  data.redemptions ||= [];
+  data.redemptions ||= []; // legacy free-instrument requests (no longer used)
+  data.rewards ||= []; // milestone gifts sent by admins (services/rewards.js)
   return data;
 }
 

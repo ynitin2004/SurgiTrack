@@ -30,14 +30,12 @@ router.get('/admin/counts', adminOnly, admin.counts);
 router.get('/admin/users', adminOnly, admin.listUsers);
 router.post('/admin/users', adminOnly, admin.createUser);
 router.patch('/admin/users/:id', adminOnly, admin.updateUser);
-router.get('/admin/redemptions', adminOnly, admin.listRedemptions);
-router.patch('/admin/redemptions/:id', adminOnly, admin.updateRedemption);
+router.get('/admin/gifts', adminOnly, admin.listGifts);
+router.patch('/admin/gifts/:surgeonId/:tier', adminOnly, admin.updateGift);
 
 // surgeon portal
 router.get('/me/profile', surgeonOnly, me.profile);
 router.get('/me/rewards', surgeonOnly, me.getRewards);
-router.get('/me/instrument-options', surgeonOnly, me.instrumentOptions);
-router.post('/me/rewards/redeem', surgeonOnly, me.redeem);
 router.get('/me/team', surgeonOnly, me.getTeam);
 router.get('/me/team/:id', surgeonOnly, me.teamMember);
 router.get('/me/inventory/new', surgeonOnly, me.newInventory);

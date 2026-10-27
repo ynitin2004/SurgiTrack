@@ -114,46 +114,40 @@ async function updateUser(req, res) {
   res.json({ user: users.publicUser(user) });
 }
 
-// ---- reward redemptions -----------------------------------------------------
+// ---- milestone gifts ---------------------------------------------------------
 
-function listRedemptions(req, res) {
-  const { status } = req.query;
-  let items = [...store.load().redemptions];
-  if (status) items = items.filter((r) => r.status === status);
-  items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  res.json({ items, every: rewards.EVERY });
+// GET /api/admin/gifts — every surgeon who reached a milestone, with gift status
+async function listGifts(req, res) {
+  res.json(await rewards.giftQueue());
 }
 
-// PATCH /api/admin/redemptions/:id { status: approved|fulfilled|rejected, adminNote? }
-async function updateRedemption(req, res) {
-  const { status } = req.body || {};
-  const adminNote = String(req.body?.adminNote || '').trim().slice(0, 500);
-  const r = store.load().redemptions.find((x) => x.id === req.params.id);
-  if (!r) return res.status(404).json({ message: 'Request not found' });
-  if (!rewards.TRANSITIONS[r.status]?.includes(status)) {
-    return res.status(409).json({ message: `A ${r.status} request cannot be marked ${status}` });
+// PATCH /api/admin/gifts/:surgeonId/:tier { status: dispatched|delivered|closed, gift?, adminNote? }
+async function updateGift(req, res) {
+  try {
+    const gift = await rewards.updateGift({
+      surgeonId: req.params.surgeonId,
+      tier: req.params.tier,
+      status: req.body?.status,
+      gift: req.body?.gift,
+      adminNote: req.body?.adminNote,
+      admin: req.user.email,
+    });
+    notify.surgeon(gift.surgeonId, 'reward:update', { tier: gift.tier, status: gift.status });
+    notify.admins('gift:updated', gift);
+    res.json({ gift });
+  } catch (err) {
+    if (err instanceof rewards.GiftError) return res.status(err.status).json({ message: err.message });
+    throw err;
   }
-  if (status === 'rejected' && !adminNote) {
-    return res.status(400).json({ message: 'Please give a reason when rejecting' });
-  }
-  r.status = status;
-  if (adminNote) r.adminNote = adminNote;
-  r.updatedAt = store.now();
-  r.handledBy = req.user.email;
-  await store.persist();
-
-  notify.surgeon(r.surgeonId, 'reward:update', { milestone: r.milestone, status });
-  notify.admins('redemption:updated', r);
-  res.json({ redemption: r });
 }
 
 // Badge counts for the admin header.
-function counts(req, res) {
+async function counts(req, res) {
   const db = store.load();
   res.json({
     pendingUsers: db.users.filter((u) => u.status === 'pending').length,
-    pendingRedemptions: db.redemptions.filter((r) => r.status === 'requested').length,
+    pendingGifts: await rewards.pendingGiftCount(),
   });
 }
 
-module.exports = { listUsers, createUser, updateUser, listRedemptions, updateRedemption, counts };
+module.exports = { listUsers, createUser, updateUser, listGifts, updateGift, counts };

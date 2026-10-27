@@ -164,6 +164,19 @@ async function categoryCounts(groupRows) {
   return [...map.entries()].map(([category, count]) => ({ category, count })).sort((a, b) => b.count - a.count);
 }
 
+// One pass over surgeries -> Map(surgeonIdString -> number of surgeries).
+async function countsBySurgeon() {
+  const rows = await coll()
+    .aggregate([
+      { $match: { [F.surgeon]: { $nin: [null, ''] } } },
+      { $group: { _id: { $convert: { input: `$${F.surgeon}`, to: 'string', onError: null, onNull: null } }, n: { $sum: 1 } } },
+    ])
+    .toArray();
+  const map = new Map();
+  for (const r of rows) if (r._id) map.set(r._id, (map.get(r._id) || 0) + r.n);
+  return map;
+}
+
 // group stage key for category ids that may be ObjectId or string
 const CATEGORY_KEY = { $convert: { input: `$${F.category}`, to: 'string', onError: null, onNull: null } };
 
@@ -188,4 +201,5 @@ module.exports = {
   toRows,
   categoryCounts,
   CATEGORY_KEY,
+  countsBySurgeon,
 };
